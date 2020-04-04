@@ -21,7 +21,7 @@ class InputExample(object):
         intent_label: (Optional) string. The intent label of the example.
         slot_labels: (Optional) list. The slot labels of the example.
     """
-
+    # 这是一个load data的类
     def __init__(self, guid, words, intent_label=None, slot_labels=None):
         self.guid = guid
         self.words = words
@@ -43,7 +43,7 @@ class InputExample(object):
 
 class InputFeatures(object):
     """A single set of features of data."""
-
+    # 这是一个load label的类
     def __init__(self, input_ids, attention_mask, token_type_ids, intent_label_id, slot_labels_ids):
         self.input_ids = input_ids
         self.attention_mask = attention_mask
@@ -51,14 +51,17 @@ class InputFeatures(object):
         self.intent_label_id = intent_label_id
         self.slot_labels_ids = slot_labels_ids
 
+    # __repr__是python的内置函数得到json串表示
     def __repr__(self):
         return str(self.to_json_string())
 
+    # 将init中的数据转化成深拷贝的字典形式, 以便于后面的使用
     def to_dict(self):
         """Serializes this instance to a Python dictionary."""
         output = copy.deepcopy(self.__dict__)
         return output
 
+    # 规格化json
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
@@ -69,20 +72,21 @@ class JointProcessor(object):
 
     def __init__(self, args):
         self.args = args
-        self.intent_labels = get_intent_labels(args)
+        self.intent_labels = get_intent_labels(args)    # 读取intent_label.txt获取unique的label
         self.slot_labels = get_slot_labels(args)
 
         self.input_text_file = 'seq.in'
         self.intent_label_file = 'label'
         self.slot_labels_file = 'seq.out'
 
+    # 这是一个read_file的函数
     @classmethod
     def _read_file(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
         with open(input_file, "r", encoding="utf-8") as f:
             lines = []
             for line in f:
-                lines.append(line.strip())
+                lines.append(line.strip())  #按行读取过滤后的字符串
             return lines
 
     def _create_examples(self, texts, intents, slots, set_type):
@@ -92,7 +96,7 @@ class JointProcessor(object):
             guid = "%s-%s" % (set_type, i)
             # 1. input_text
             words = text.split()  # Some are spaced twice
-            # 2. intent
+            # 2. intent 转化为索引形式
             intent_label = self.intent_labels.index(intent) if intent in self.intent_labels else self.intent_labels.index("UNK")
             # 3. slot
             slot_labels = []
@@ -208,19 +212,20 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer,
 
 
 def load_and_cache_examples(args, tokenizer, mode):
+    """根据不同的任务选择不同的Processor, 选择JointProcessor来加载数据"""
     processor = processors[args.task](args)
-
     # Load data features from cache or dataset file
+    # 首先判断路径下是否存在cache
     cached_features_file = os.path.join(
         args.data_dir,
         'cached_{}_{}_{}_{}'.format(
-            mode,
-            args.task,
-            list(filter(None, args.model_name_or_path.split("/"))).pop(),
-            args.max_seq_len
+            mode,               #mode = train/dev/test
+            args.task,          #atis/snips
+            list(filter(None, args.model_name_or_path.split("/"))).pop(),   #选择尾项
+            args.max_seq_len    #50
         )
     )
-
+    #如果cache存在，从cache中load
     if os.path.exists(cached_features_file):
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)

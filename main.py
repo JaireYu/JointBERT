@@ -7,7 +7,7 @@ from data_loader import load_and_cache_examples
 
 def main(args):
     init_logger()
-    tokenizer = load_tokenizer(args)
+    tokenizer = load_tokenizer(args) # 选择模型BertTokenizer执行from_pretrained
 
     train_dataset = load_and_cache_examples(args, tokenizer, mode="train")
     dev_dataset = load_and_cache_examples(args, tokenizer, mode="dev")

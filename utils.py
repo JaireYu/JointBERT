@@ -31,6 +31,7 @@ def get_slot_labels(args):
 
 
 def load_tokenizer(args):
+    """arg.model_name_or_path 在main中定义，默认为bert-base-uncased, 选择模型BertTokenizer执行from_pretrained"""
     return MODEL_CLASSES[args.model_type][2].from_pretrained(args.model_name_or_path)
 
 
