@@ -40,7 +40,7 @@ class Trainer(object):
             t_total = self.args.max_steps
             # len(train_dataloader) 是batch数
             self.args.num_train_epochs = self.args.max_steps // (len(train_dataloader) // self.args.gradient_accumulation_steps) + 1
-        else: # 不使用max_steps, 限制轮数, 最大遍历数据集次数就是轮数*batch数/(gradient_acc_steps)
+        else: # 不使用max_steps, 限制轮数, 最大step数就是轮数*batch数/(gradient_acc_steps)
             t_total = len(train_dataloader) // self.args.gradient_accumulation_steps * self.args.num_train_epochs
 
         # Prepare optimizer and schedule (linear warmup and decay)
@@ -65,27 +65,27 @@ class Trainer(object):
         logger.info("  Gradient Accumulation steps = %d", self.args.gradient_accumulation_steps)
         logger.info("  Total optimization steps = %d", t_total)
 
-        global_step = 0
+        global_step = 0             #总步数
         tr_loss = 0.0
         self.model.zero_grad()      # 清空梯度
 
         train_iterator = trange(int(self.args.num_train_epochs), desc="Epoch")
         set_seed(self.args)
 
-        for _ in train_iterator:
+        for _ in train_iterator:    #
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
-            for step, batch in enumerate(epoch_iterator):
-                self.model.train()
+            for step, batch in enumerate(epoch_iterator):   # 取出一个batch: 原数据集是tuple(5 * Tensor(4478)) 所以一个batch是tuple(5 * Tensor(16))
+                self.model.train()  # 告诉pytorch正在训练 而不是预测
                 batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
 
-                inputs = {'input_ids': batch[0],
+                inputs = {'input_ids': batch[0], # [[data]*16], 自动喂入一个batch
                           'attention_mask': batch[1],
                           'intent_label_ids': batch[3],
                           'slot_labels_ids': batch[4]}
                 if self.args.model_type != 'distilbert':
                     inputs['token_type_ids'] = batch[2]
                 outputs = self.model(**inputs)      #该语句自动执行forward, 与显式调用forward不同的是这个过程还会调用一些hooks
-                loss = outputs[0]
+                loss = outputs[0]                   # 喂入的是一个batch, loss应该是一个batch的平均值
 
                 if self.args.gradient_accumulation_steps > 1:       #取一个step的平均loss
                     loss = loss / self.args.gradient_accumulation_steps
@@ -93,18 +93,18 @@ class Trainer(object):
                 loss.backward()
 
                 tr_loss += loss.item()
-                if (step + 1) % self.args.gradient_accumulation_steps == 0:
+                if (step + 1) % self.args.gradient_accumulation_steps == 0: # 一个step结束, 需要更新参数
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
 
-                    optimizer.step()
+                    optimizer.step()    #一个loss的积累过程结束，更新参数
                     scheduler.step()  # Update learning rate schedule
-                    self.model.zero_grad()
+                    self.model.zero_grad()  #清空梯度
                     global_step += 1
 
-                    if self.args.logging_steps > 0 and global_step % self.args.logging_steps == 0:
+                    if self.args.logging_steps > 0 and global_step % self.args.logging_steps == 0:  #logging_step:200步之后进行dev
                         self.evaluate("dev")
 
-                    if self.args.save_steps > 0 and global_step % self.args.save_steps == 0:
+                    if self.args.save_steps > 0 and global_step % self.args.save_steps == 0:    # 200步save model
                         self.save_model()
 
                 if 0 < self.args.max_steps < global_step:
@@ -153,15 +153,15 @@ class Trainer(object):
                 outputs = self.model(**inputs)
                 tmp_eval_loss, (intent_logits, slot_logits) = outputs[:2]
 
-                eval_loss += tmp_eval_loss.mean().item()
+                eval_loss += tmp_eval_loss.mean().item()    # 对batch内的
             nb_eval_steps += 1
 
             # Intent prediction
             if intent_preds is None:
-                intent_preds = intent_logits.detach().cpu().numpy()
+                intent_preds = intent_logits.detach().cpu().numpy() #intent输出转化成numpy()
                 out_intent_label_ids = inputs['intent_label_ids'].detach().cpu().numpy()
             else:
-                intent_preds = np.append(intent_preds, intent_logits.detach().cpu().numpy(), axis=0)
+                intent_preds = np.append(intent_preds, intent_logits.detach().cpu().numpy(), axis=0) # np.append()是拼接两个nparray的操作
                 out_intent_label_ids = np.append(
                     out_intent_label_ids, inputs['intent_label_ids'].detach().cpu().numpy(), axis=0)
 
@@ -193,8 +193,8 @@ class Trainer(object):
         # Slot result
         if not self.args.use_crf:
             slot_preds = np.argmax(slot_preds, axis=2)
-        slot_label_map = {i: label for i, label in enumerate(self.slot_label_lst)}
-        out_slot_label_list = [[] for _ in range(out_slot_labels_ids.shape[0])]
+        slot_label_map = {i: label for i, label in enumerate(self.slot_label_lst)}  # {sentence_id:label_list}
+        out_slot_label_list = [[] for _ in range(out_slot_labels_ids.shape[0])] #建立测试样例个空数组
         slot_preds_list = [[] for _ in range(out_slot_labels_ids.shape[0])]
 
         for i in range(out_slot_labels_ids.shape[0]):
@@ -218,9 +218,9 @@ class Trainer(object):
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model_to_save = self.model.module if hasattr(self.model, 'module') else self.model
-        model_to_save.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_config.bin'))
+        model_to_save = self.model.module if hasattr(self.model, 'module') else self.model #意思是只加载model本身
+        model_to_save.save_pretrained(output_dir)       # save模型
+        torch.save(self.args, os.path.join(output_dir, 'training_config.bin'))  #save_trainingconfig
         logger.info("Saving model checkpoint to %s", output_dir)
 
     def load_model(self):
@@ -229,7 +229,7 @@ class Trainer(object):
             raise Exception("Model doesn't exists! Train first!")
 
         try:
-            self.bert_config = self.config_class.from_pretrained(self.args.model_dir)
+            self.bert_config = self.config_class.from_pretrained(self.args.model_dir)   # 在文件夹中自动加载bert的配置文件
             logger.info("***** Config loaded *****")
             self.model = self.model_class.from_pretrained(self.args.model_dir, config=self.bert_config,
                                                           args=self.args, intent_label_lst=self.intent_label_lst,

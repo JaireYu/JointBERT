@@ -83,7 +83,7 @@ def read_prediction_text(args):
     return [text.strip() for text in open(os.path.join(args.pred_dir, args.pred_input_file), 'r', encoding='utf-8')]
 
 
-def get_sentence_frame_acc(intent_preds, intent_labels, slot_preds, slot_labels):
+def get_sentence_frame_acc(intent_preds, intent_labels, slot_preds, slot_labels):   # 如果slot的结果有一个不对，记为0，否则记为1， 然后和intent的结果相乘取平均
     """For the cases that intent and all the slots are correct (in one sentence)"""
     # Get the intent comparison result
     intent_result = (intent_preds == intent_labels)

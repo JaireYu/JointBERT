@@ -70,7 +70,10 @@ if __name__ == '__main__':
     parser.add_argument("--pred_input_file", default="preds.txt", type=str, help="The input text file of lines for prediction")
     parser.add_argument("--pred_output_file", default="outputs.txt", type=str, help="The output file of prediction")
     parser.add_argument("--do_pred", action="store_true", help="Whether to predict the sentences")
-
+    #  action = "store_true"
+    # #python test.py --do_pred => c是true（触发）
+    #
+    # #python test.py => c是false（无触发）
     # CRF option
     parser.add_argument("--use_crf", action="store_true", help="Whether to use CRF")
     parser.add_argument("--slot_pad_label", default="PAD", type=str, help="Pad token for slot label pad (to be ignore when calculate loss)")
