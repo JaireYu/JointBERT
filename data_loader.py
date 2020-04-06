@@ -144,6 +144,7 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer,
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
 
         # Tokenize word by word (for NER)
+        """对每一组句子和intent做编码，其中如果有的词解码出了多个token，选择第一个词写intent，然后剩下的补pad_label_id(0)"""
         tokens = []
         slot_labels_ids = []
         for word, slot_label in zip(example.words, example.slot_labels):
@@ -155,6 +156,7 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer,
             slot_labels_ids.extend([int(slot_label)] + [pad_token_label_id] * (len(word_tokens) - 1))
 
         # Account for [CLS] and [SEP]
+        """截断到50"""
         special_tokens_count = 2
         if len(tokens) > max_seq_len - special_tokens_count:
             tokens = tokens[:(max_seq_len - special_tokens_count)]
@@ -169,13 +171,14 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer,
         tokens = [cls_token] + tokens
         slot_labels_ids = [pad_token_label_id] + slot_labels_ids
         token_type_ids = [cls_token_segment_id] + token_type_ids
-
+        """转化成id格式"""
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
-
+        """标志real_token"""
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
         attention_mask = [1 if mask_padding_with_zero else 0] * len(input_ids)
 
+        """扩充至50"""
         # Zero-pad up to the sequence length.
         padding_length = max_seq_len - len(input_ids)
         input_ids = input_ids + ([pad_token_id] * padding_length)

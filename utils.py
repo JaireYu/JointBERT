@@ -41,7 +41,7 @@ def init_logger():
                         level=logging.INFO)
 
 
-def set_seed(args):
+def set_seed(args):         # 对所有可能出现随机数的部分设置随机种子
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)

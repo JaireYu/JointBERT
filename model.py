@@ -39,8 +39,10 @@ class JointBERT(BertPreTrainedModel):
         self.args = args
         self.num_intent_labels = len(intent_label_lst)
         self.num_slot_labels = len(slot_label_lst)
+        #执行预测任务 这两个有什么区别？？？
         if args.do_pred:
             self.bert = PRETRAINED_MODEL_MAP[args.model_type](config=bert_config)
+        # 执行训练任务
         else:
             self.bert = PRETRAINED_MODEL_MAP[args.model_type].from_pretrained(args.model_name_or_path, config=bert_config)  # Load pretrained bert
 
@@ -66,7 +68,7 @@ class JointBERT(BertPreTrainedModel):
                 intent_loss_fct = nn.MSELoss()
                 intent_loss = intent_loss_fct(intent_logits.view(-1), intent_label_ids.view(-1))
             else:
-                intent_loss_fct = nn.CrossEntropyLoss()
+                intent_loss_fct = nn.CrossEntropyLoss() #交叉熵损失只考虑了正确的label，结果是-log(softmax)
                 intent_loss = intent_loss_fct(intent_logits.view(-1, self.num_intent_labels), intent_label_ids.view(-1))
             total_loss += intent_loss
 
@@ -78,14 +80,14 @@ class JointBERT(BertPreTrainedModel):
             else:
                 slot_loss_fct = nn.CrossEntropyLoss(ignore_index=self.args.ignore_index)
                 # Only keep active parts of the loss
-                if attention_mask is not None:
-                    active_loss = attention_mask.view(-1) == 1
-                    active_logits = slot_logits.view(-1, self.num_slot_labels)[active_loss]
+                if attention_mask is not None:                                          #如果存在attentionmask
+                    active_loss = attention_mask.view(-1) == 1                         # 对1的位置写1，不是1的位置写0
+                    active_logits = slot_logits.view(-1, self.num_slot_labels)[active_loss] #意思是取active_loss这个tensor中index为1的index, 注意这个tensor的数据类型必须为uint8
                     active_labels = slot_labels_ids.view(-1)[active_loss]
                     slot_loss = slot_loss_fct(active_logits, active_labels)
                 else:
                     slot_loss = slot_loss_fct(slot_logits.view(-1, self.num_slot_labels), slot_labels_ids.view(-1))
-            total_loss += self.args.slot_loss_coef * slot_loss
+            total_loss += self.args.slot_loss_coef * slot_loss  #考虑到二者的系数差异，不同权重
 
         outputs = ((intent_logits, slot_logits),) + outputs[1:]  # add hidden states and attention if they are here
 

@@ -23,11 +23,11 @@ class Trainer(object):
         self.slot_label_lst = get_slot_labels(args)
         # Use cross entropy ignore index as padding label id so that only real label ids contribute to the loss later
         self.pad_token_label_id = args.ignore_index
-
+        """model_class选择我们自己的JointBert， Config_Class以config基类配置加入我们自己finetuning-task"""
         self.config_class, self.model_class, _ = MODEL_CLASSES[args.model_type]
         self.bert_config = self.config_class.from_pretrained(args.model_name_or_path, finetuning_task=args.task)
         self.model = self.model_class(self.bert_config, args, self.intent_label_lst, self.slot_label_lst)
-
+        """根据do_pred来选择load的model|^"""
         # GPU or CPU
         self.device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
         self.model.to(self.device)
@@ -36,20 +36,25 @@ class Trainer(object):
         train_sampler = RandomSampler(self.train_dataset)
         train_dataloader = DataLoader(self.train_dataset, sampler=train_sampler, batch_size=self.args.batch_size)
 
-        if self.args.max_steps > 0:
+        if self.args.max_steps > 0: #当使用max_steps, 可以通过batch数和gradient_accumulation_steps数计算需要遍历多少次数据集(num_train_epochs)和反向传播的次数(t_total)
             t_total = self.args.max_steps
+            # len(train_dataloader) 是batch数
             self.args.num_train_epochs = self.args.max_steps // (len(train_dataloader) // self.args.gradient_accumulation_steps) + 1
-        else:
+        else: # 不使用max_steps, 限制轮数, 最大遍历数据集次数就是轮数*batch数/(gradient_acc_steps)
             t_total = len(train_dataloader) // self.args.gradient_accumulation_steps * self.args.num_train_epochs
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
+        # n是参数的name: BERT_NAME: embeddings.word_embeddings.weight encoder.layer.5.output.LayerNorm.bias等
+        # 下面这段代码的意思是，如果no_decay中的任何一个字段都不在name中则对para使用L2正则项, 否则默认设为0, 即bias相关的不带偏置项,
+        print([n for n, p in self.model.named_parameters()])
         optimizer_grouped_parameters = [
             {'params': [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
              'weight_decay': self.args.weight_decay},
             {'params': [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
         optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.learning_rate, eps=self.args.adam_epsilon)
+        # 调度学习率在初期上升，后期下降(warm_up)
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=self.args.warmup_steps, num_training_steps=t_total)
 
         # Train!
@@ -62,7 +67,7 @@ class Trainer(object):
 
         global_step = 0
         tr_loss = 0.0
-        self.model.zero_grad()
+        self.model.zero_grad()      # 清空梯度
 
         train_iterator = trange(int(self.args.num_train_epochs), desc="Epoch")
         set_seed(self.args)
@@ -79,10 +84,10 @@ class Trainer(object):
                           'slot_labels_ids': batch[4]}
                 if self.args.model_type != 'distilbert':
                     inputs['token_type_ids'] = batch[2]
-                outputs = self.model(**inputs)
+                outputs = self.model(**inputs)      #该语句自动执行forward, 与显式调用forward不同的是这个过程还会调用一些hooks
                 loss = outputs[0]
 
-                if self.args.gradient_accumulation_steps > 1:
+                if self.args.gradient_accumulation_steps > 1:       #取一个step的平均loss
                     loss = loss / self.args.gradient_accumulation_steps
 
                 loss.backward()
