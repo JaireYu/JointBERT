@@ -72,7 +72,7 @@ class Trainer(object):
         train_iterator = trange(int(self.args.num_train_epochs), desc="Epoch")
         set_seed(self.args)
 
-        for _ in train_iterator:    #
+        for _ in train_iterator:    # 一次遍历数据集
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):   # 取出一个batch: 原数据集是tuple(5 * Tensor(4478)) 所以一个batch是tuple(5 * Tensor(16))
                 self.model.train()  # 告诉pytorch正在训练 而不是预测
